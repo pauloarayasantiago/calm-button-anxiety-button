@@ -1,0 +1,942 @@
+---
+title: "Anxiety Support App: Data Preparation and Processing"
+author: "Your Name - Data Analyst Candidate"
+date: "October 26, 2023"
+output:
+  html_notebook
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+capture_all_output <- TRUE  # Set to FALSE for interactive use
+
+library(tidyverse)
+library(skimr)
+library(here)
+library(janitor)
+library(patchwork)
+
+# Define output file path
+project_root <- here()
+data_folder <- file.path(project_root, "data")
+output_folder <- file.path(project_root, "output")
+plots_folder <- file.path(output_folder, "plots")
+
+# Create output directories
+if (!dir.exists(output_folder)) {
+  dir.create(output_folder)
+}
+if (!dir.exists(plots_folder)) {
+  dir.create(plots_folder)
+}
+
+output_file_path <- file.path(output_folder, "data_prep_process_log.txt") #Updated
+data_file_path <- file.path(data_folder, "anxiety_attack_dataset.csv")
+```
+
+## 1. Introduction
+
+This report documents the data preparation and processing steps for the "Anxiety Support App: Marketing Audience Identification" case study.  The primary objective is to identify and characterize potential target audiences for the "Calm Button" application.
+
+## 2. Project Setup and Data Acquisition
+
+### 2.1 Loading Necessary Libraries
+
+(Libraries are loaded in the setup chunk)
+
+### 2.2 Defining Project Paths
+
+(Paths are defined in the setup chunk)
+
+### 2.3 Importing the Dataset
+
+```{r import-data}
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Importing Data ---\n\n")
+}
+
+anxiety_data_raw <- read_csv(data_file_path)
+
+if (capture_all_output) {
+  print(Sys.time())
+  sink()
+}
+```
+
+## 3. Detailed Data Inspection (Prepare Phase)
+
+### 3.1 Import check
+
+```{r import-check}
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Import Check ---\n\n")
+}
+
+head(anxiety_data_raw)
+
+if (capture_all_output) {
+  print(Sys.time())
+  sink()
+}
+```
+
+### 3.2 Column Name Cleaning
+
+```{r clean-names}
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Column Name Cleaning ---\n\n")
+}
+
+anxiety_data_clean_names <- janitor::clean_names(anxiety_data_raw)
+
+if (capture_all_output) {
+    print(Sys.time())
+  sink()
+}
+```
+
+### 3.3 Data Structure
+
+```{r data-structure}
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Data Structure ---\n\n")
+}
+
+str(anxiety_data_clean_names)
+
+if (capture_all_output) {
+    print(Sys.time())
+  sink()
+}
+```
+
+### 3.4 Data Distribution
+
+```{r data-summary}
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Data Summary ---\n\n")
+}
+
+summary(anxiety_data_clean_names)
+
+if (capture_all_output) {
+    print(Sys.time())
+  sink()
+}
+```
+
+### 3.5 Further Details
+
+```{r data-skim}
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Detailed Data Summary (skimr) ---\n\n")
+}
+
+skim(anxiety_data_clean_names)
+
+if (capture_all_output) {
+    print(Sys.time())
+  sink()
+}
+```
+
+## 4. Detailed Variable Examination (Prepare Phase Visualizations)
+
+```{r functions, include=FALSE}
+# --- Function for Categorical Variable Visualization ---
+plot_categorical <- function(data, var_name) {
+  # Create frequency table
+  freq_table <- table(data[[var_name]])
+
+  # Create bar plot
+  plot <- ggplot(data, aes(x = .data[[var_name]])) +
+    geom_bar() +
+    labs(title = paste("Distribution of", var_name),
+         x = var_name,
+         y = "Count") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+  # Print to console (if capture_all_output is TRUE and sink is active)
+  if (capture_all_output) {
+    print(paste("Frequency Table for", var_name, ":"))
+    print(freq_table)
+    print(plot)
+  }
+
+
+  return(list(plot = plot, freq_table = freq_table)) # Return plot and table
+}
+
+# --- Function for Numeric Variable Visualization ---
+plot_numeric <- function(data, var_name) {
+  # Create histogram
+  plot_hist <- ggplot(data, aes(x = .data[[var_name]])) +
+    geom_histogram(bins = 30) +  # Adjust bins as needed
+    labs(title = paste("Distribution of", var_name),
+         x = var_name,
+         y = "Count")
+
+  # Create boxplot
+  plot_box <- ggplot(data, aes(y = .data[[var_name]])) +
+    geom_boxplot() +
+    labs(title = paste("Boxplot of", var_name),
+         y = var_name)
+
+  # Print to console
+  if (capture_all_output) {
+    print(paste("Histogram for", var_name))
+    print(plot_hist)
+    print(paste("Boxplot for", var_name))
+    print(plot_box)
+  }
+
+  return(list(histogram = plot_hist, boxplot = plot_box))
+}
+
+# --- Function to Combine and Save Plots ---
+combine_and_save <- function(plot_list, filename, ncol = 2, type = "categorical") {
+  if (type == "categorical") {
+    combined_plot <- wrap_plots(plot_list, ncol = ncol, guides = "collect")
+
+  } else {
+    # Extract histograms and boxplots
+    histograms <- lapply(plot_list, function(x) x$histogram)
+    boxplots <- lapply(plot_list, function(x) x$boxplot)
+
+    # Combine histograms and boxplots separately
+    combined_histograms <- wrap_plots(histograms, ncol = ncol, guides = "collect")
+    combined_boxplots <- wrap_plots(boxplots, ncol = ncol, guides = "collect")
+
+    # Combine both sets of plots (histograms above boxplots)
+    combined_plot <- combined_histograms / combined_boxplots # Vertical arrangement
+  }
+
+  ggsave(filename, combined_plot, width = 12, height = 8 * (length(plot_list) / 2), dpi = 300) #Adjust height
+}
+
+```
+
+### 4.1 Categorical Variable Analysis
+
+```{r categorical-plots}
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Categorical Variable Plots ---\n\n")
+}
+
+categorical_vars <- c("gender", "occupation", "smoking", "family_history_of_anxiety",
+                     "dizziness", "medication", "recent_major_life_event")
+
+# Generate plots and tables, storing them in a list
+categorical_results <- lapply(categorical_vars, function(var) {
+  plot_categorical(anxiety_data_clean_names, var)
+})
+
+# Extract just the plots for combining
+categorical_plots <- lapply(categorical_results, function(x) x$plot)
+
+# Combine and save
+combine_and_save(categorical_plots, file.path(plots_folder, "combined_categorical_plots.png"), type = "categorical")
+
+
+if (capture_all_output) {
+    print(Sys.time())
+  sink()
+}
+```
+
+### 4.2 Numeric Variable Analysis
+
+```{r numeric-plots}
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Numeric Variable Plots ---\n\n")
+}
+
+numeric_vars <- c("age", "sleep_hours", "physical_activity_hrs_week",
+                 "caffeine_intake_mg_day", "alcohol_consumption_drinks_week",
+                 "stress_level_1_10", "heart_rate_bpm_during_attack",
+                 "breathing_rate_breaths_min", "sweating_level_1_5",
+                 "therapy_sessions_per_month", "diet_quality_1_10",
+                 "severity_of_anxiety_attack_1_10")
+
+# Generate plots, storing them in a list
+numeric_results <- lapply(numeric_vars, function(var) {
+  plot_numeric(anxiety_data_clean_names, var)
+})
+
+# Combine and save numeric plots (histograms and boxplots)
+combine_and_save(numeric_results, file.path(plots_folder, "combined_numeric_plots.png"), type = "numeric")
+
+
+if (capture_all_output) {
+  print(Sys.time())
+  sink()
+}
+```
+
+### 4.3 Data Type Conversion Plan
+
+The following variables will be converted to factors in the Process phase:
+
+*   **gender:** Categorical variable.
+*   **occupation:** Categorical variable.
+*   **smoking:** Categorical (Yes/No).
+*   **family_history_of_anxiety:** Categorical (Yes/No).
+*   **dizziness:** Categorical (Yes/No).
+*   **medication:** Categorical (Yes/No).
+*   **recent_major_life_event:** Categorical (Yes/No).
+
+### 4.4 Duplicate Check
+
+```{r duplicate-check}
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Duplicate Check ---\n\n")
+}
+
+duplicates<- anxiety_data_clean_names %>%
+  duplicated() %>%
+  sum()
+print("Number of Duplicate Rows:")
+print(duplicates)
+
+if (capture_all_output) {
+    print(Sys.time())
+  sink()
+}
+```
+
+### 4.5 Explicit Missing Value Check
+
+```{r missing-value-check}
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Explicit Missing Value Check ---\n\n")
+}
+
+missing_values <- colSums(is.na(anxiety_data_clean_names))
+print("Missing Values per Column:")
+print(missing_values)
+
+missing_percentages <- colMeans(is.na(anxiety_data_clean_names)) * 100
+print("Percentage of Missing Values per Column:")
+print(missing_percentages)
+
+
+if (capture_all_output) {
+  print(Sys.time())
+  sink()
+}
+```
+
+## 5. Data Processing (Process Phase)
+
+This section details the data cleaning and transformation steps, addressing the issues and plans identified in the Prepare phase.
+
+### 5.1 Data Type Conversion
+
+```{r data-type-conversion}
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Data Type Conversion ---\n\n")
+}
+
+# Create a copy for processing
+anxiety_data_processed <- anxiety_data_clean_names
+
+# Convert character variables to factors
+categorical_vars <- c("gender", "occupation", "smoking", "family_history_of_anxiety",
+                     "dizziness", "medication", "recent_major_life_event")
+
+anxiety_data_processed <- anxiety_data_processed %>%
+  mutate(across(all_of(categorical_vars), as.factor))
+
+# Verify conversion
+str(anxiety_data_processed)
+
+if (capture_all_output) {
+  print(Sys.time())
+  sink()
+}
+```
+
+### 5.2 Outlier Investigation and Handling
+
+```{r outlier-handling}
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Outlier Investigation and Handling ---\n\n")
+}
+
+# --- sleep_hours ---
+# Investigate values < 4
+low_sleep <- anxiety_data_processed %>% filter(sleep_hours < 4)
+print("Observations with sleep_hours < 4:")
+print(low_sleep)
+# Decision: Keep.  While low, these values are plausible.
+
+# --- physical_activity_hrs_week ---
+# Investigate values > 9
+high_activity <- anxiety_data_processed %>% filter(physical_activity_hrs_week > 9)
+print("Observations with physical_activity_hrs_week > 9:")
+print(high_activity)
+# Decision: Keep. These are high but plausible values.
+
+# --- caffeine_intake_mg_day ---
+# Investigate values > 400
+high_caffeine <- anxiety_data_processed %>% filter(caffeine_intake_mg_day > 400)
+print("Observations with caffeine_intake_mg_day > 400:")
+print(high_caffeine)
+# Decision: Keep. These are high, but plausible, values.
+
+# --- alcohol_consumption_drinks_week ---
+# Investigate values > 14
+high_alcohol <- anxiety_data_processed %>% filter(alcohol_consumption_drinks_week > 14)
+print("Observations with alcohol_consumption_drinks_week > 14:")
+print(high_alcohol)
+# Decision: Keep. While above recommended limits, they are plausible.
+
+# --- heart_rate_bpm_during_attack ---
+# Investigate values < 70 and > 160
+low_hr <- anxiety_data_processed %>% filter(heart_rate_bpm_during_attack < 70)
+print("Observations with heart_rate_bpm_during_attack < 70:")
+print(low_hr)
+
+high_hr <- anxiety_data_processed %>% filter(heart_rate_bpm_during_attack > 160)
+print("Observations with heart_rate_bpm_during_attack > 160:")
+print(high_hr)
+# Decision: Keep. After reviewing the context, values are kept.
+
+# --- breathing_rate_breaths_min ---
+# Investigate values < 15 and > 35
+low_br <- anxiety_data_processed %>% filter(breathing_rate_breaths_min < 15)
+print("Observations with breathing_rate_breaths_min < 15:")
+print(low_br)
+high_br <- anxiety_data_processed %>% filter(breathing_rate_breaths_min > 35)
+print("Observations with breathing_rate_breaths_min > 35:")
+print(high_br)
+# Decision: Keep. After reviewing the context, values are kept.
+
+if (capture_all_output) {
+  print(Sys.time())
+  sink()
+}
+```
+
+### 5.3. Variable Creation
+
+```{r variable-creation}
+if (capture_all_output) {
+    sink(file = output_file_path, append = TRUE, split = TRUE)
+    cat("\n\n--- Variable Creation ---\n\n")
+}
+
+# --- High Stress Indicator ---
+anxiety_data_processed <- anxiety_data_processed %>%
+  mutate(high_stress = ifelse(stress_level_1_10 >= 8, 1, 0))
+
+# --- High Severity Indicator ---
+anxiety_data_processed <- anxiety_data_processed %>%
+  mutate(high_severity = ifelse(severity_of_anxiety_attack_1_10 >= 8, 1, 0))
+
+# --- Untreated Indicator ---
+anxiety_data_processed <- anxiety_data_processed %>%
+  mutate(untreated = ifelse(high_stress == 1 & high_severity == 1 & therapy_sessions_per_month == 0 & medication == "No", 1, 0))
+
+# --- Low Sleep Indicator ---
+anxiety_data_processed <- anxiety_data_processed %>%
+      mutate(low_sleep = ifelse(sleep_hours < 7, 1, 0))
+
+
+# --- High Alcohol Consumption Indicator ---
+anxiety_data_processed <- anxiety_data_processed %>%
+      mutate(high_alcohol = ifelse( (gender == "Female" & alcohol_consumption_drinks_week >= 8) |
+                                     (gender == "Male"   & alcohol_consumption_drinks_week >= 15) |
+                                     (gender == "Other" & alcohol_consumption_drinks_week >= 15)
+                                   , 1, 0))
+
+# --- High Caffeine Consumption Indicator ---
+anxiety_data_processed <- anxiety_data_processed %>%
+    mutate(high_caffeine = ifelse(caffeine_intake_mg_day > 400, 1, 0))
+
+#Verify
+str(anxiety_data_processed)
+
+if (capture_all_output) {
+  print(Sys.time())
+  sink()
+}
+```
+
+### 5.4. Verification
+
+```{r verification}
+# --- Verification ---
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Verification ---\n\n")
+}
+
+# Check for NA's again in the new variables
+missing_values_processed <- colSums(is.na(anxiety_data_processed))
+print("Missing Values per Column After Processing:")
+print(missing_values_processed)
+
+# Check for Duplicates again
+duplicates_processed <- anxiety_data_processed %>%
+  duplicated() %>%
+  sum()
+print("Number of Duplicate Rows After Processing:")
+print(duplicates_processed)
+
+if (capture_all_output) {
+  print(Sys.time())
+  sink()
+}
+```
+
+## 6. Data Analysis (Analyze Phase)
+
+### 6.1. Descriptive Statistics (Targeted Groups)
+
+```{r descriptive-stats}
+# --- Descriptive Statistics (Targeted Groups) ---
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Descriptive Statistics (Targeted Groups) ---\n\n")
+}
+
+library(knitr) # Make sure knitr is loaded
+
+# --- Overall Descriptive Statistics ---
+cat("\nOverall Descriptive Statistics:\n")
+print(kable(skim(anxiety_data_processed), format = "markdown"))
+
+
+# --- High Stress Group (stress_level_1_10 >= 8) ---
+cat("\nHigh Stress Group (stress_level_1_10 >= 8):\n")
+high_stress_skim <- anxiety_data_processed %>%
+  filter(high_stress == 1) %>%
+  skim()
+print(kable(high_stress_skim, format = "markdown"))
+
+# --- High Severity Group (severity_of_anxiety_attack_1_10 >= 8) ---
+cat("\nHigh Severity Group (severity_of_anxiety_attack_1_10 >= 8):\n")
+high_severity_skim <- anxiety_data_processed %>%
+  filter(high_severity == 1) %>%
+  skim()
+print(kable(high_severity_skim, format = "markdown"))
+
+
+# --- Untreated Group (high_stress, high_severity, no therapy/medication) ---
+cat("\nUntreated Group (High Stress, High Severity, No Therapy/Medication):\n")
+untreated_skim <- anxiety_data_processed %>%
+  filter(untreated == 1) %>%
+  skim()
+print(kable(untreated_skim, format = "markdown"))
+
+
+# --- Low Sleep Group (sleep_hours < 7) ---
+cat("\nLow Sleep Group (sleep_hours < 7):\n")
+low_sleep_skim <- anxiety_data_processed %>%
+  filter(low_sleep == 1) %>%
+  skim()
+print(kable(low_sleep_skim, format = "markdown"))
+
+# --- High Alcohol Group ---
+cat("\nHigh Alcohol Group:\n")
+high_alcohol_skim <- anxiety_data_processed %>%
+  filter(high_alcohol == 1) %>%
+  skim()
+print(kable(high_alcohol_skim, format = "markdown"))
+
+
+# --- High Caffeine Group ---
+cat("\nHigh Caffeine Group:\n")
+high_caffeine_skim <- anxiety_data_processed %>%
+  filter(high_caffeine == 1) %>%
+  skim()
+print(kable(high_caffeine_skim, format = "markdown"))
+
+# --- Specific Statistics for Key Questions ---
+# Create a data frame to store these results
+key_stats <- data.frame(
+  Question = character(),
+  Statistic = character(),
+  Value = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Question 1: Percentage with severe anxiety attacks in high-stress group
+
+q1_result <- anxiety_data_processed %>%
+  filter(high_stress == 1) %>%
+  summarize(percent_high_severity = mean(high_severity) * 100)
+key_stats <- rbind(key_stats, data.frame(Question = "Q1", Statistic = "Percent High Severity (High Stress)", Value = q1_result$percent_high_severity))
+
+
+# Question 3: Proportion untreated in high-stress/high-severity group
+
+q3_result <- anxiety_data_processed %>%
+  filter(high_stress == 1, high_severity == 1) %>%
+  summarize(proportion_untreated = mean(untreated) * 100)
+key_stats <- rbind(key_stats, data.frame(Question = "Q3", Statistic = "Percent Untreated (High Stress/Severity)", Value = q3_result$proportion_untreated))
+
+
+# Question 8: average heart rate and breathing rate
+q8_high_result <- anxiety_data_processed %>%
+    filter(severity_of_anxiety_attack_1_10 >= 8) %>%
+    summarise(average_heart_rate = mean(heart_rate_bpm_during_attack),
+              average_breathing_rate = mean(breathing_rate_breaths_min))
+key_stats <- rbind(key_stats, data.frame(Question = "Q8 (High)", Statistic = "Average Heart Rate", Value = q8_high_result$average_heart_rate))
+key_stats <- rbind(key_stats, data.frame(Question = "Q8 (High)", Statistic = "Average Breathing Rate", Value = q8_high_result$average_breathing_rate))
+
+
+q8_low_result <- anxiety_data_processed %>%
+    filter(severity_of_anxiety_attack_1_10 < 4) %>%
+    summarise(average_heart_rate = mean(heart_rate_bpm_during_attack),
+              average_breathing_rate = mean(breathing_rate_breaths_min))
+key_stats <- rbind(key_stats, data.frame(Question = "Q8 (Low)", Statistic = "Average Heart Rate", Value = q8_low_result$average_heart_rate))
+key_stats <- rbind(key_stats, data.frame(Question = "Q8 (Low)", Statistic = "Average Breathing Rate", Value = q8_low_result$average_breathing_rate))
+
+# Question 9: median reported severity_of_anxiety_attack_1_10 of those in therapy
+q9_result <- anxiety_data_processed %>%
+    filter(therapy_sessions_per_month > 0) %>%
+    summarise(median_severity_with_therapy = median(severity_of_anxiety_attack_1_10))
+key_stats <- rbind(key_stats, data.frame(Question = "Q9", Statistic = "Median Severity (With Therapy)", Value = q9_result$median_severity_with_therapy))
+
+
+cat("\nKey Statistics Summary:\n")
+print(kable(key_stats, format = "markdown"))
+
+
+if (capture_all_output) {
+  print(Sys.time())
+  sink()
+}
+```
+
+### 6.2. Visualizations
+
+```{r visualizations}
+# --- Visualizations ---
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Visualizations ---\n\n")
+}
+
+# --- Stress Level vs. Anxiety Severity (Boxplot) ---
+plot_stress_severity <- ggplot(anxiety_data_processed, aes(x = factor(high_stress), y = severity_of_anxiety_attack_1_10)) +
+  geom_boxplot() +
+  labs(title = "Anxiety Severity by High Stress",
+       x = "High Stress (0 = No, 1 = Yes)",
+       y = "Severity of Anxiety Attack (1-10)")
+# Keep print statement for console output
+print(plot_stress_severity)
+
+# --- Untreated vs. Treated (Boxplot) ---
+plot_untreated_severity <- ggplot(anxiety_data_processed, aes(x = factor(untreated), y = severity_of_anxiety_attack_1_10)) +
+    geom_boxplot() +
+    labs(title = "Anxiety Severity by Untreated Status",
+         x = "Untreated (0 = No, 1 = Yes)",
+         y = "Severity of Anxiety Attack (1-10)")
+print(plot_untreated_severity)
+
+# --- Lifestyle Factors vs. Anxiety Severity (Scatterplots) ---
+
+plot_lifestyle_vs_severity <- function(data, lifestyle_var) {
+  plot <- ggplot(data, aes(x = .data[[lifestyle_var]], y = severity_of_anxiety_attack_1_10)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method = "lm", se = FALSE) +
+    labs(title = paste("Anxiety Severity vs.", lifestyle_var),
+         x = lifestyle_var,
+         y = "Severity of Anxiety Attack (1-10)")
+  if (capture_all_output) { # Only print if capture_all_output is TRUE
+        print(plot)
+    }
+  return(plot)
+}
+
+lifestyle_vars <- c("sleep_hours", "physical_activity_hrs_week", "caffeine_intake_mg_day", "alcohol_consumption_drinks_week", "diet_quality_1_10")
+
+lifestyle_plots <- lapply(lifestyle_vars, function(var) {
+  plot_lifestyle_vs_severity(anxiety_data_processed, var)
+})
+
+
+# --- Age Groups vs. Anxiety Severity (within high-stress/high-severity) ---
+anxiety_data_processed <- anxiety_data_processed %>%
+  mutate(age_group = cut(age, breaks = c(18, 30, 45, 65), labels = c("18-29", "30-44", "45-64"), include.lowest = TRUE))
+
+plot_age_severity <- ggplot(anxiety_data_processed %>% filter(high_stress == 1, high_severity == 1), aes(x = age_group, y = severity_of_anxiety_attack_1_10)) +
+  geom_boxplot() +
+  labs(title = "Anxiety Severity by Age Group (High Stress/Severity)",
+       x = "Age Group",
+       y = "Severity of Anxiety Attack (1-10)")
+print(plot_age_severity)
+# --- Histograms of Key Metrics, Faceted by high_stress and high_severity ---
+
+# Heart Rate
+plot_hr_facet <- ggplot(anxiety_data_processed, aes(x = heart_rate_bpm_during_attack)) +
+  geom_histogram(bins = 30) +
+  facet_grid(high_stress ~ high_severity) +
+  labs(title = "Heart Rate Distribution by Stress and Severity",
+       x = "Heart Rate (bpm)",
+       y = "Count")
+print(plot_hr_facet)
+
+# Breathing Rate
+plot_br_facet <- ggplot(anxiety_data_processed, aes(x = breathing_rate_breaths_min)) +
+  geom_histogram(bins = 30) +
+  facet_grid(high_stress ~ high_severity) +
+  labs(title = "Breathing Rate Distribution by Stress and Severity",
+       x = "Breathing Rate (breaths/min)",
+       y = "Count")
+print(plot_br_facet)
+
+# --- Stacked Bar Plots for Categorical Variables (Question 6) ---
+plot_categorical_comparison <- function(data, var_name) {
+    plot <- ggplot(data, aes(x = factor(severity_of_anxiety_attack_1_10), fill = .data[[var_name]] )) +
+        geom_bar(position = "fill") +
+        labs(title = paste("Proportion of", var_name, "by Anxiety Severity"),
+        x = "Severity of Anxiety Attack (1-10)",
+        y = "Proportion",
+        fill = var_name) +
+        scale_y_continuous(labels = scales::percent)
+    if (capture_all_output) { # Only print if capture_all_output is TRUE
+        print(plot)
+    }
+    return(plot)
+}
+
+categorical_vars_q6 <- c("smoking", "family_history_of_anxiety", "dizziness", "recent_major_life_event")
+
+categorical_comparison_plots <- lapply(categorical_vars_q6, function(var){
+    plot_categorical_comparison(anxiety_data_processed, var)
+})
+
+# Combine and save plots
+all_plots <- c(list(plot_stress_severity, plot_untreated_severity),
+               lifestyle_plots,
+               list(plot_age_severity, plot_hr_facet, plot_br_facet),
+               categorical_comparison_plots)
+
+combine_and_save(all_plots, file.path(plots_folder, "combined_analysis_plots.png"), ncol = 3, type = "other")
+
+
+if (capture_all_output) {
+  print(Sys.time())
+  sink()
+}
+```
+
+### 6.3. Correlation Analysis
+
+```{r correlation-analysis}
+# --- Correlation Analysis ---
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Correlation Analysis ---\n\n")
+}
+
+# Calculate correlations
+correlations <- anxiety_data_processed %>%
+  select(all_of(lifestyle_vars), severity_of_anxiety_attack_1_10) %>%
+  cor(use = "pairwise.complete.obs")  # Handle potential missing values (though we have none)
+
+print("Correlation Matrix:")
+print(kable(correlations, format = "markdown"))
+
+# Perform correlation tests (for statistical significance)
+correlation_tests <- lapply(lifestyle_vars, function(var) {
+  cor.test(anxiety_data_processed[[var]], anxiety_data_processed$severity_of_anxiety_attack_1_10)
+})
+names(correlation_tests) <- lifestyle_vars # Name the list elements
+
+print("Correlation Tests:")
+# Using capture.output to format the correlation test results
+for (var in names(correlation_tests)) {
+    cat(paste("\n*** Correlation Test for:", var, "***\n"))
+    cat(capture.output(print(correlation_tests[[var]])), sep = "\n")
+}
+
+
+if (capture_all_output) {
+  print(Sys.time())
+  sink()
+}
+```
+
+### 6.4. Statistical Tests (Optional)
+
+```{r statistical-tests}
+# --- Statistical Tests ---
+
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Statistical Tests ---\n\n")
+}
+
+# --- T-test: Heart Rate by High Severity ---
+# Question 8
+t_test_hr <- t.test(heart_rate_bpm_during_attack ~ high_severity, data = anxiety_data_processed)
+print("T-test: Heart Rate by High Severity")
+print(t_test_hr)
+
+
+# --- Chi-squared Test: Smoking by High Severity ---
+# Question 6
+chisq_test_smoking <- chisq.test(anxiety_data_processed$smoking, anxiety_data_processed$high_severity)
+print("Chi-squared Test: Smoking by High Severity")
+print(chisq_test_smoking)
+
+if (capture_all_output) {
+    print(Sys.time())
+    sink()
+}
+```
+
+### 6.5. Modeling (Optional)
+
+```{r modeling}
+# --- Logistic Regression Model (Optional) ---
+
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Logistic Regression Model ---\n\n")
+}
+
+# Build the model (predicting high_severity)
+model <- glm(high_severity ~ age + gender + sleep_hours + physical_activity_hrs_week +
+               caffeine_intake_mg_day + alcohol_consumption_drinks_week +
+               smoking + family_history_of_anxiety + stress_level_1_10 +
+               dizziness + medication + therapy_sessions_per_month +
+               recent_major_life_event + diet_quality_1_10 + low_sleep + high_alcohol + high_caffeine,
+             data = anxiety_data_processed, family = "binomial")
+
+# Summarize the model
+summary(model)
+
+if (capture_all_output) {
+    print(Sys.time())
+    sink()
+}
+```
+
+### 6.6 Enhancements
+
+```{r analyze-enhancements}
+# --- Enhancements to Analyze Phase ---
+
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Analyze Phase Enhancements ---\n\n")
+}
+
+# --- Question 2: Compare Lifestyle Factors to Overall Averages ---
+cat("\nQuestion 2: Lifestyle Factor Comparisons (High Stress/Severity vs. Overall):\n")
+
+# Calculate overall averages
+overall_means <- anxiety_data_processed %>%
+  summarize(across(all_of(lifestyle_vars), ~ mean(.x, na.rm = TRUE)))
+
+# Calculate averages for high-stress/high-severity group
+high_stress_severity_means <- anxiety_data_processed %>%
+  filter(high_stress == 1, high_severity == 1) %>%
+  summarize(across(all_of(lifestyle_vars), ~ mean(.x, na.rm = TRUE)))
+
+# Combine and print.  Use kable for nice formatting.
+comparison_table <- bind_rows(
+  "Overall" = overall_means,
+  "High Stress/Severity" = high_stress_severity_means,
+  .id = "Group"
+)
+print(kable(comparison_table, format = "markdown"))
+
+
+# --- Question 4: Age Group Analysis within High Stress/Severity ---
+cat("\nQuestion 4: Age Group Analysis within High Stress/Severity:\n")
+
+# Lifestyle factors by age group
+lifestyle_by_age <- anxiety_data_processed %>%
+  filter(high_stress == 1, high_severity == 1) %>%
+  group_by(age_group) %>%
+  summarize(across(all_of(lifestyle_vars), ~ mean(.x, na.rm = TRUE)))
+print(kable(lifestyle_by_age, format = "markdown"))
+
+
+# Treatment usage by age group
+treatment_by_age <- anxiety_data_processed %>%
+  filter(high_stress == 1, high_severity == 1) %>%
+  group_by(age_group) %>%
+  summarize(percent_therapy = mean(therapy_sessions_per_month > 0) * 100,
+            percent_medication = mean(medication == "Yes") * 100)
+print(kable(treatment_by_age, format = "markdown"))
+
+
+# --- Question 6: High vs. Low Severity Comparisons ---
+cat("\nQuestion 6: High vs. Low Severity Comparisons:\n")
+
+# Calculate proportions for high severity
+high_severity_props <- anxiety_data_processed %>%
+  filter(high_severity == 1) %>%
+  summarize(across(all_of(categorical_vars_q6), ~ mean(.x == "Yes") * 100))
+
+# Calculate proportions for low severity
+low_severity_props <- anxiety_data_processed %>%
+  filter(severity_of_anxiety_attack_1_10 < 4) %>%
+  summarize(across(all_of(categorical_vars_q6), ~ mean(.x == "Yes") * 100))
+
+# Combine and print
+comparison_table_q6 <- bind_rows(
+  "High Severity" = high_severity_props,
+  "Low Severity" = low_severity_props,
+  .id = "Group"
+)
+print(kable(comparison_table_q6, format = "markdown"))
+
+# Chi-squared tests for each variable, capturing output
+for (var in categorical_vars_q6) {
+    cat(paste("\nChi-squared test for", var, ":\n"))
+    tbl <- table(anxiety_data_processed[[var]], anxiety_data_processed$high_severity)
+    print(capture.output(chisq.test(tbl)))
+}
+
+if (capture_all_output) {
+  print(Sys.time())
+  sink()
+}
+```
+
+### 6.7 Analysis Summary and Findings
+
+Add a section to summarize all the findings from the different analysis and tie it with the questions defined in the Ask phase.
+
+```{r analysis-summary}
+# --- Analysis Summary and Findings ---
+if (capture_all_output) {
+  sink(file = output_file_path, append = TRUE, split = TRUE)
+  cat("\n\n--- Analysis Summary and Findings ---\n\n")
+}
+#To be added in the next step
+if (capture_all_output) {
+    print(Sys.time())
+    sink()
+}
+```
+
+```{r close-sink, include=FALSE, eval=capture_all_output}
+# Ensure sink is closed even if there's an error in a previous chunk
+if (sink.number() > 0) {
+    print(Sys.time())
+  sink()
+}
+```
+
+

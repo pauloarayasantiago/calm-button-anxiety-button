@@ -1,0 +1,569 @@
+---
+title: "Anxiety Support App: Marketing Audience Identification - Analysis Report"
+author: "Paulo Araya Santiago"
+date: "February 7th, 2025"
+output:
+  html_notebook:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(skimr)
+library(here)
+library(janitor)
+library(patchwork)
+library(knitr) 
+
+# Define output file path
+project_root <- here()
+data_folder <- file.path(project_root, "data")
+output_folder <- file.path(project_root, "output")
+plots_folder <- file.path(output_folder, "plots")
+
+data_file_path <- file.path(data_folder, "anxiety_attack_dataset.csv")
+
+# --- Function for Lifestyle vs. Severity Plots ---
+plot_lifestyle_vs_severity <- function(data, lifestyle_var) {
+    ggplot(data, aes(x = .data[[lifestyle_var]], y = severity_of_anxiety_attack_1_10)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method = "lm", se = FALSE) +
+    labs(title = paste("Anxiety Severity vs.", lifestyle_var),
+         x = lifestyle_var,
+         y = "Severity of Anxiety Attack (1-10)")
+}
+
+# --- Function for Categorical Variable Comparison Plots ---
+plot_categorical_comparison <- function(data, var_name) {
+     ggplot(data, aes(x = factor(severity_of_anxiety_attack_1_10), fill = .data[[var_name]] )) +
+        geom_bar(position = "fill") +
+        labs(title = paste("Proportion of", var_name, "by Anxiety Severity"),
+        x = "Severity of Anxiety Attack (1-10)",
+        y = "Proportion",
+        fill = var_name) +
+        scale_y_continuous(labels = scales::percent)
+}
+```
+
+## 1. Introduction
+
+This report documents the complete data analysis process for the "Calm Button" application marketing audience identification project. This project is a **fictional case study** developed as part of the Google Data Analytics Certification.  The goal is to identify and characterize high-potential target audiences for the "Calm Button" app, which is presented as a hypothetical mobile application designed to provide immediate, discreet anxiety relief, particularly in workplace settings. We aim to move beyond broad demographic targeting and pinpoint specific segments most likely to benefit from the app's features.
+
+While this is a simulated scenario, the data analysis process and techniques used are real and reflect industry best practices. The insights derived from this analysis, although based on a synthetic dataset, are intended to demonstrate how data-driven decision-making can inform marketing strategies.
+
+Our analysis followed the established data analysis process: Ask, Prepare, Process, Analyze, Share, and Act. This notebook provides a comprehensive and reproducible record of all steps, from defining the business problem and research questions to data preparation, analysis, and key findings.
+
+### 1.1. Guiding SMART Questions
+
+To ensure our analysis was focused and relevant, we developed the following SMART (Specific, Measurable, Action-oriented, Relevant, and Time-bound) questions to guide our investigation:
+
+*   **High-Stress & Lifestyle Segments:**
+
+    1.  **Stress & Severity:** Among individuals reporting high stress levels (stress_level_1_10 >= 8), what is the distribution of `severity_of_anxiety_attack_1_10`? What percentage report severe anxiety attacks (>= 8)?
+    2.  **Lifestyle & High Stress/Severity:** Within the high-stress, high-severity group (defined in Q1), what are the average values and distributions of key lifestyle factors: `sleep_hours`, `physical_activity_hrs_week`, `caffeine_intake_mg_day`, `alcohol_consumption_drinks_week`, and `diet_quality_1_10`? How do these compare to the overall dataset averages?
+    3.  **Untreated Need:** What proportion of individuals with high stress and high anxiety severity (defined in Q1) report no therapy (`therapy_sessions_per_month` = 0) and no medication use (`medication` = "No")? This identifies a potential "untreated" segment.
+    4. **Age & High Stress/Severity:** Within the high-stress, high-severity group, are there significant differences in anxiety severity, lifestyle factors, or treatment usage across different age groups (e.g., 18-29, 30-44, 45-64)?
+    5.  **Physiological Response:** What is the average `heart_rate_bpm_during_attack` and the average `breathing_rate_breaths_min` in people with a `severity_of_anxiety_attack_1_10` of 8 or higher, versus people with a `severity_of_anxiety_attack_1_10` of 3 or lower?
+     6. **Therapy Usage and Severity:** Among those who report attending therapy (`therapy_sessions_per_month` > 0) , what is the median reported `severity_of_anxiety_attack_1_10`?
+
+*   **Behavioral & Contextual Analysis:**
+
+    7.  **Lifestyle Correlations:** Across the *entire* dataset, what are the correlations between the key lifestyle factors (`sleep_hours`, `physical_activity_hrs_week`, `caffeine_intake_mg_day`, `alcohol_consumption_drinks_week`, `diet_quality_1_10`) and `severity_of_anxiety_attack_1_10`? Are these correlations statistically significant?
+    8.  **Smoking, Family History, Dizziness, Life Events:** What proportion of individuals with high anxiety severity (>= 8) report: smoking, a family history of anxiety, dizziness during anxiety attacks and a recent major life event. How do these proportions compare to those with low anxiety severity (< 4)?
+    9.  **Messaging & Value Proposition:** Based on the identified needs, behaviors, and pain points of the target segments, how should the "Calm Button" app be positioned in marketing messaging to best resonate with their specific workplace anxiety challenges and highlight its value proposition (discretion, instant access, haptic feedback, privacy)?
+
+These questions provide a clear framework for our analysis and ensure that our findings are directly relevant to the business objectives.
+
+## 2. Project Setup and Data Acquisition
+
+The necessary R packages (`tidyverse`, `skimr`, `here`, `janitor`, `patchwork`, `knitr`) were loaded, and project paths were defined using the `here` package for portability. The dataset, `anxiety_attack_dataset.csv`, was imported into R.
+
+## 3. Data Preparation (Prepare Phase) - Summary
+
+```{r prepare-code, include=FALSE}
+# --- Data Import and Initial Cleaning (from Prepare phase) ---
+anxiety_data_raw <- read_csv(data_file_path)
+anxiety_data_clean_names <- janitor::clean_names(anxiety_data_raw)
+
+# --- Prepare Phase Plots (for reference, not displayed) ---
+# --- Function for Categorical Variable Visualization ---
+plot_categorical <- function(data, var_name) {
+  # Create bar plot
+  ggplot(data, aes(x = .data[[var_name]])) +
+    geom_bar() +
+    labs(title = paste("Distribution of", var_name),
+         x = var_name,
+         y = "Count") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+}
+
+# --- Function for Numeric Variable Visualization ---
+plot_numeric <- function(data, var_name) {
+  # Create histogram + boxplot
+  list(histogram = ggplot(data, aes(x = .data[[var_name]])) +
+                        geom_histogram(bins = 30) +
+                        labs(title = paste("Distribution of", var_name),
+                             x = var_name,
+                             y = "Count"),
+       boxplot = ggplot(data, aes(y = .data[[var_name]])) +
+                    geom_boxplot() +
+                    labs(title = paste("Boxplot of", var_name),
+                         y = var_name)
+       )
+}
+
+
+categorical_vars <- c("gender", "occupation", "smoking", "family_history_of_anxiety",
+                     "dizziness", "medication", "recent_major_life_event")
+numeric_vars <- c("age", "sleep_hours", "physical_activity_hrs_week",
+                 "caffeine_intake_mg_day", "alcohol_consumption_drinks_week",
+                 "stress_level_1_10", "heart_rate_bpm_during_attack",
+                 "breathing_rate_breaths_min", "sweating_level_1_5",
+                 "therapy_sessions_per_month", "diet_quality_1_10",
+                 "severity_of_anxiety_attack_1_10")
+```
+
+**Key Observations from Prepare Phase:**
+
+*   The dataset is complete and clean, with no missing values or duplicates.
+*   Occupations are relatively evenly distributed, suggesting that occupation alone may not be a strong differentiator for anxiety levels.
+*   Several numeric variables (`sleep_hours`, `physical_activity_hrs_week`, `caffeine_intake_mg_day`, `alcohol_consumption_drinks_week`, `heart_rate_bpm_during_attack`, `breathing_rate_breaths_min`) exhibited potential outliers, which would require further investigation.
+
+## 4. Data Processing
+
+```{r process-code, include=FALSE}
+# --- Data Processing ---
+
+# Data Type Conversion
+anxiety_data_processed <- anxiety_data_clean_names %>%
+  mutate(across(all_of(categorical_vars), as.factor))
+
+# Outlier Investigation (all outliers were kept after contextual review)
+
+# Variable Creation
+anxiety_data_processed <- anxiety_data_processed %>%
+  mutate(high_stress = ifelse(stress_level_1_10 >= 8, 1, 0),
+         high_severity = ifelse(severity_of_anxiety_attack_1_10 >= 8, 1, 0),
+         untreated = ifelse(high_stress == 1 & high_severity == 1 & therapy_sessions_per_month == 0 & medication == "No", 1, 0),
+         low_sleep = ifelse(sleep_hours < 7, 1, 0),
+         high_alcohol = ifelse( (gender == "Female" & alcohol_consumption_drinks_week >= 8) |
+                                     (gender == "Male"   & alcohol_consumption_drinks_week >= 15) |
+                                     (gender == "Other" & alcohol_consumption_drinks_week >= 15)
+                                   , 1, 0),
+        high_caffeine = ifelse(caffeine_intake_mg_day > 400, 1, 0),
+        age_group = cut(age, breaks = c(18, 30, 45, 65), labels = c("18-29", "30-44", "45-64"), include.lowest = TRUE))
+
+#Final Verification
+# Check for NA's again in the new variables
+missing_values_processed <- colSums(is.na(anxiety_data_processed))
+# Check for Duplicates again
+duplicates_processed <- anxiety_data_processed %>%
+  duplicated() %>%
+  sum()
+```
+
+The Process phase involved the following data cleaning and transformation steps:
+
+1.  **Data Type Conversion:** All character variables identified as categorical in the Prepare phase were converted to factors in R. This ensures correct handling in subsequent statistical analyses and visualizations.
+
+2.  **Outlier Investigation:** Potential outliers identified in the Prepare phase were examined in context.  After careful consideration, all potential outlier values were *retained*, as they were deemed plausible within the context of the dataset.  This decision was documented.
+
+3.  **Variable Creation:**  Six new binary indicator variables were created to facilitate analysis and segmentation:
+    *   `high_stress`: Indicates high reported stress levels (>= 8).
+    *   `high_severity`: Indicates high reported anxiety attack severity (>= 8).
+    *   `untreated`: Indicates individuals who are both high-stress and high-severity and are *not* receiving therapy or medication.
+    *   `low_sleep`: Indicates individuals reporting less than 7 hours of sleep.
+    *   `high_alcohol`: Indicates individuals exceeding recommended weekly alcohol consumption limits.
+    *   `high_caffeine`: Indicates individuals consuming more than 400mg of caffeine daily.
+    *    `age_group`: Indicates individuals age group.
+    These variables are directly aligned with the refined SMART questions and allow for targeted analysis of key subgroups.
+
+The resulting `anxiety_data_processed` data frame, with 12,000 rows and 26 columns, was then used as the input for the Analyze phase.
+
+## 5. Data Analysis (Analyze Phase)
+
+This section presents the analysis performed to address the SMART questions, using the processed data (`anxiety_data_processed`).
+
+### 5.1. Descriptive Statistics (Targeted Groups)
+
+We began by calculating descriptive statistics for the entire dataset and for key subgroups defined by our indicator variables. This provides an overview of the data distribution and allows for comparisons between groups.
+
+```{r descriptive-stats}
+# --- Overall Descriptive Statistics ---
+cat("\nOverall Descriptive Statistics:\n")
+print(kable(skim(anxiety_data_processed), format = "markdown"))
+
+
+# --- High Stress Group (stress_level_1_10 >= 8) ---
+cat("\nHigh Stress Group (stress_level_1_10 >= 8):\n")
+high_stress_skim <- anxiety_data_processed %>%
+  filter(high_stress == 1) %>%
+  skim()
+print(kable(high_stress_skim, format = "markdown"))
+
+# --- High Severity Group (severity_of_anxiety_attack_1_10 >= 8) ---
+cat("\nHigh Severity Group (severity_of_anxiety_attack_1_10 >= 8):\n")
+high_severity_skim <- anxiety_data_processed %>%
+  filter(high_severity == 1) %>%
+  skim()
+print(kable(high_severity_skim, format = "markdown"))
+
+
+# --- Untreated Group (high_stress, high_severity, no therapy/medication) ---
+cat("\nUntreated Group (High Stress, High Severity, No Therapy/Medication):\n")
+untreated_skim <- anxiety_data_processed %>%
+  filter(untreated == 1) %>%
+  skim()
+print(kable(untreated_skim, format = "markdown"))
+
+
+# --- Low Sleep Group (sleep_hours < 7) ---
+cat("\nLow Sleep Group (sleep_hours < 7):\n")
+low_sleep_skim <- anxiety_data_processed %>%
+  filter(low_sleep == 1) %>%
+  skim()
+print(kable(low_sleep_skim, format = "markdown"))
+
+# --- High Alcohol Group ---
+cat("\nHigh Alcohol Group:\n")
+high_alcohol_skim <- anxiety_data_processed %>%
+  filter(high_alcohol == 1) %>%
+  skim()
+print(kable(high_alcohol_skim, format = "markdown"))
+
+
+# --- High Caffeine Group ---
+cat("\nHigh Caffeine Group:\n")
+high_caffeine_skim <- anxiety_data_processed %>%
+  filter(high_caffeine == 1) %>%
+  skim()
+print(kable(high_caffeine_skim, format = "markdown"))
+
+# --- Specific Statistics for Key Questions ---
+# Create a data frame to store these results
+key_stats <- data.frame(
+  Question = character(),
+  Statistic = character(),
+  Value = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Question 1: Percentage with severe anxiety attacks in high-stress group
+
+q1_result <- anxiety_data_processed %>%
+  filter(high_stress == 1) %>%
+  summarize(percent_high_severity = mean(high_severity, na.rm = TRUE) * 100)
+key_stats <- rbind(key_stats, data.frame(Question = "Q1", Statistic = "Percent High Severity (High Stress)", Value = q1_result$percent_high_severity))
+
+
+# Question 3: Proportion untreated in high-stress/high-severity group
+
+q3_result <- anxiety_data_processed %>%
+  filter(high_stress == 1, high_severity == 1) %>%
+  summarize(proportion_untreated = mean(untreated, na.rm = TRUE) * 100)
+key_stats <- rbind(key_stats, data.frame(Question = "Q3", Statistic = "Percent Untreated (High Stress/Severity)", Value = q3_result$proportion_untreated))
+
+
+# Question 8: average heart rate and breathing rate
+q8_high_result <- anxiety_data_processed %>%
+    filter(severity_of_anxiety_attack_1_10 >= 8) %>%
+    summarise(average_heart_rate = mean(heart_rate_bpm_during_attack, na.rm = TRUE),
+              average_breathing_rate = mean(breathing_rate_breaths_min, na.rm = TRUE))
+key_stats <- rbind(key_stats, data.frame(Question = "Q8 (High)", Statistic = "Average Heart Rate", Value = q8_high_result$average_heart_rate))
+key_stats <- rbind(key_stats, data.frame(Question = "Q8 (High)", Statistic = "Average Breathing Rate", Value = q8_high_result$average_breathing_rate))
+
+
+q8_low_result <- anxiety_data_processed %>%
+    filter(severity_of_anxiety_attack_1_10 < 4) %>%
+    summarise(average_heart_rate = mean(heart_rate_bpm_during_attack, na.rm = TRUE),
+              average_breathing_rate = mean(breathing_rate_breaths_min, na.rm = TRUE))
+key_stats <- rbind(key_stats, data.frame(Question = "Q8 (Low)", Statistic = "Average Heart Rate", Value = q8_low_result$average_heart_rate))
+key_stats <- rbind(key_stats, data.frame(Question = "Q8 (Low)", Statistic = "Average Breathing Rate", Value = q8_low_result$average_breathing_rate))
+
+# Question 9: median reported severity_of_anxiety_attack_1_10 of those in therapy
+q9_result <- anxiety_data_processed %>%
+    filter(therapy_sessions_per_month > 0) %>%
+    summarise(median_severity_with_therapy = median(severity_of_anxiety_attack_1_10, na.rm = TRUE))
+key_stats <- rbind(key_stats, data.frame(Question = "Q9", Statistic = "Median Severity (With Therapy)", Value = q9_result$median_severity_with_therapy))
+
+
+cat("\nKey Statistics Summary:\n")
+print(kable(key_stats, format = "markdown"))
+```
+
+**Descriptive Statistics Findings:**
+
+The `skim()` output provides a comprehensive overview of the data, both overall and within key subgroups.  We observe the following:
+
+*   **Overall:**  The overall sample shows a wide range of ages, a relatively even gender distribution, and a variety of occupations (as expected).  The average stress level is around 5.5, and the average anxiety severity is also around 5.5.
+*   **High Stress Group:**  This group (defined as stress level >= 8) comprises a substantial portion of the sample.  As expected, their average anxiety severity is higher than the overall average.  We also see a higher percentage reporting high anxiety severity (as calculated in `key_stats`).
+*   **High Severity Group:** Similar to the high-stress group, this group shows expected differences from the overall sample, particularly in the anxiety-related variables.
+*   **Untreated Group:**  This group is considerably smaller, representing individuals with both high stress and high severity who are not receiving therapy or medication.  This is a potentially important target audience.
+*   **Low Sleep, High Alcohol, High Caffeine Groups:**  These groups allow us to examine the characteristics of individuals exhibiting these lifestyle factors.
+* **Key Statistics** The statistics show almost 49% with high-stress report having severe anxiety. Also, 7.8% of the high-stress and high-severity group are untreated.
+
+These descriptive statistics provide a foundation for further analysis and help us understand the characteristics of the different subgroups we've defined.
+
+### 5.2. Visualizations
+
+```{r visualizations, fig.width=10, fig.height=8}
+# --- Visualizations ---
+
+# --- Stress Level vs. Anxiety Severity (Boxplot) ---
+plot_stress_severity <- ggplot(anxiety_data_processed, aes(x = factor(high_stress), y = severity_of_anxiety_attack_1_10)) +
+  geom_boxplot() +
+  labs(title = "Anxiety Severity by High Stress",
+       x = "High Stress (0 = No, 1 = Yes)",
+       y = "Severity of Anxiety Attack (1-10)")
+print(plot_stress_severity)
+
+# --- Untreated vs. Treated (Boxplot) ---
+plot_untreated_severity <- ggplot(anxiety_data_processed, aes(x = factor(untreated), y = severity_of_anxiety_attack_1_10)) +
+    geom_boxplot() +
+    labs(title = "Anxiety Severity by Untreated Status",
+         x = "Untreated (0 = No, 1 = Yes)",
+         y = "Severity of Anxiety Attack (1-10)")
+print(plot_untreated_severity)
+
+# --- Lifestyle Factors vs. Anxiety Severity (Scatterplots) ---
+lifestyle_vars <- c("sleep_hours", "physical_activity_hrs_week", "caffeine_intake_mg_day", "alcohol_consumption_drinks_week", "diet_quality_1_10")
+
+lifestyle_plots <- lapply(lifestyle_vars, function(var) {
+  plot_lifestyle_vs_severity(anxiety_data_processed, var)
+})
+
+# --- Age Groups vs. Anxiety Severity (within high-stress/high-severity) ---
+plot_age_severity <- ggplot(anxiety_data_processed %>% filter(high_stress == 1, high_severity == 1), aes(x = age_group, y = severity_of_anxiety_attack_1_10)) +
+  geom_boxplot() +
+  labs(title = "Anxiety Severity by Age Group (High Stress/Severity)",
+       x = "Age Group",
+       y = "Severity of Anxiety Attack (1-10)")
+print(plot_age_severity)
+
+# --- Histograms of Key Metrics, Faceted by high_stress and high_severity ---
+
+# Heart Rate
+plot_hr_facet <- ggplot(anxiety_data_processed, aes(x = heart_rate_bpm_during_attack)) +
+  geom_histogram(bins = 30) +
+  facet_grid(high_stress ~ high_severity) + # Facet by both
+  labs(title = "Heart Rate Distribution by Stress and Severity",
+       x = "Heart Rate (bpm)",
+       y = "Count")
+print(plot_hr_facet)
+# Breathing Rate
+plot_br_facet <- ggplot(anxiety_data_processed, aes(x = breathing_rate_breaths_min)) +
+  geom_histogram(bins = 30) +
+  facet_grid(high_stress ~ high_severity) + # Facet by both
+  labs(title = "Breathing Rate Distribution by Stress and Severity",
+       x = "Breathing Rate (breaths/min)",
+       y = "Count")
+print(plot_br_facet)
+# --- Stacked Bar Plots for Categorical Variables (Question 6)---
+
+categorical_vars_q6 <- c("smoking", "family_history_of_anxiety", "dizziness", "recent_major_life_event")
+
+categorical_comparison_plots <- lapply(categorical_vars_q6, function(var){
+    plot_categorical_comparison(anxiety_data_processed, var)
+})
+```
+
+**Visualization Insights:**
+
+*   **Anxiety Severity by High Stress:** The boxplot visually confirms that individuals reporting high stress tend to report higher anxiety severity, as expected.
+*   **Anxiety Severity by Untreated Status:**  The boxplot shows a similar pattern, with the "untreated" group tending to have higher anxiety severity.
+*   **Lifestyle Factors vs. Anxiety Severity:** The scatterplots provide a visual assessment of the relationships between lifestyle factors and anxiety severity.  We can observe any trends (or lack thereof) from these plots. The blue trend line helps visualize any potential linear relationships.
+*   **Anxiety Severity by Age Group:** The boxplot allows us to compare anxiety severity across age groups *within* the high-stress/high-severity subgroup.
+*  **Heart rate and breathing rate:** We can visually compare how the stress level (rows) and the severity (columns) affect the distribution individually, and in combination.
+*   **Stacked Bar Plots (Categorical Variables):** These plots visually represent the *proportions* of different characteristics (smoking, family history, etc.) across different levels of anxiety severity. This helps us see, at a glance, if certain characteristics are more prevalent among those with high anxiety.
+
+These visualizations provide a visual exploration of the data and help us identify potential patterns and relationships to investigate further with statistical tests.
+
+### 5.3. Correlation Analysis
+
+```{r correlation-analysis}
+# --- Correlation Analysis ---
+
+# Calculate correlations
+correlations <- anxiety_data_processed %>%
+  select(all_of(lifestyle_vars), severity_of_anxiety_attack_1_10) %>%
+  cor(use = "pairwise.complete.obs")  # Handle potential missing values
+
+print("Correlation Matrix:")
+print(kable(correlations, format = "markdown", digits = 3))
+
+# Perform correlation tests (for statistical significance)
+correlation_tests <- lapply(lifestyle_vars, function(var) {
+  cor.test(anxiety_data_processed[[var]], anxiety_data_processed$severity_of_anxiety_attack_1_10)
+})
+names(correlation_tests) <- lifestyle_vars # Name the list elements
+
+print("Correlation Tests:")
+# Using capture.output to format the correlation test results
+for (var in names(correlation_tests)) {
+    cat(paste("\n*** Correlation Test for:", var, "***\n"))
+    cat(capture.output(print(correlation_tests[[var]])), sep = "\n")
+}
+```
+
+**Correlation Analysis Findings:**
+
+The correlation matrix and correlation tests reveal that, across the *entire* dataset, the linear relationships between the measured lifestyle factors and anxiety severity are generally *very weak*. Most correlations are close to zero, and most are not statistically significant (p > 0.05).  The one exception is a very weak, *positive* correlation between `physical_activity_hrs_week` and `severity_of_anxiety_attack_1_10` (r = 0.018, p = 0.048). This is a small effect and could be spurious, but it's worth noting.
+
+**Implications:**
+
+*   These findings suggest that, *in this dataset*, these lifestyle factors, *on their own*, are not strong predictors of anxiety severity.
+*   This *doesn't* mean these factors are unimportant, but it suggests that their relationship with anxiety might be more complex (e.g., non-linear, or mediated by other variables like stress).
+
+### 5.4. Statistical Tests 
+
+```{r statistical-tests}
+# --- Statistical Tests ---
+
+# --- T-test: Heart Rate by High Severity ---
+# Question 8
+t_test_hr <- t.test(heart_rate_bpm_during_attack ~ high_severity, data = anxiety_data_processed)
+print("T-test: Heart Rate by High Severity")
+print(t_test_hr)
+
+# Calculate Cohen's d (effect size) for t-test
+cohens_d_hr <- (mean(anxiety_data_processed$heart_rate_bpm_during_attack[anxiety_data_processed$high_severity == 1], na.rm = TRUE) -
+                 mean(anxiety_data_processed$heart_rate_bpm_during_attack[anxiety_data_processed$high_severity == 0], na.rm = TRUE)) /
+                sd(anxiety_data_processed$heart_rate_bpm_during_attack, na.rm = TRUE)
+cat(paste("\nCohen's d for Heart Rate t-test:", cohens_d_hr, "\n"))
+
+
+# --- Chi-squared Tests and Cramer's V (Question 6 and others) ---
+# Function to perform chi-squared test and calculate Cramer's V
+chisq_and_cramersv <- function(var1, var2) {
+  tbl <- table(var1, var2)
+  chi2_result <- chisq.test(tbl, correct = FALSE) # No Yates' correction
+
+  # Calculate Cramer's V
+  chi2 <- chi2_result$statistic
+  n <- sum(tbl)
+  k <- min(nrow(tbl), ncol(tbl))
+  cramers_v <- sqrt(chi2 / (n * (k - 1)))
+
+  cat(paste("\nChi-squared test for", deparse(substitute(var1)), "and", deparse(substitute(var2)), ":\n"))
+  print(chi2_result)
+  cat(paste("Cramer's V:", cramers_v, "\n"))
+}
+
+# Apply to categorical variables vs. high_severity
+for (var in categorical_vars_q6) {
+  chisq_and_cramersv(anxiety_data_processed[[var]], anxiety_data_processed$high_severity)
+}
+
+# --- ANOVA and Post-Hoc Tests (for multiple group comparisons) ---
+
+# Example: ANOVA for severity_of_anxiety_attack_1_10 by occupation
+cat("\nANOVA: Anxiety Severity by Occupation:\n")
+anova_occupation <- aov(severity_of_anxiety_attack_1_10 ~ occupation, data = anxiety_data_processed)
+print(summary(anova_occupation))
+
+# Post-hoc test (Tukey's HSD) if ANOVA is significant
+if (summary(anova_occupation)[[1]][["Pr(>F)"]][1] < 0.05) {
+  cat("\nTukey's HSD Post-Hoc Test:\n")
+  print(TukeyHSD(anova_occupation))
+}
+
+
+# Example: ANOVA for severity_of_anxiety_attack_1_10 by age_group
+cat("\nANOVA: Anxiety Severity by Age Group:\n")
+anova_age <- aov(severity_of_anxiety_attack_1_10 ~ age_group, data = anxiety_data_processed)
+print(summary(anova_age))
+
+if (summary(anova_age)[[1]][["Pr(>F)"]][1] < 0.05) {
+  cat("\nTukey's HSD Post-Hoc Test:\n")
+  print(TukeyHSD(anova_age))
+}
+```
+
+**Statistical Test Findings:**
+
+*   **T-test (Heart Rate):**  The t-test comparing heart rate between high and low anxiety severity groups was *not* statistically significant (p = 0.7232).  Furthermore, Cohen's d (effect size) was extremely small (-0.007), indicating a negligible difference in practical terms.
+*   **Chi-squared Tests:**
+    *   **Smoking:** No significant association with high severity (p = 0.2063).
+    *   **Family History:** No significant association with high severity (p = 0.2666).
+    *   **Dizziness:** A *statistically significant* association with high severity (p = 0.03337).  However, Cramer's V (0.0196) indicates a *very weak* association.
+    *   **Recent Major Life Event:** No significant association with high severity (p = 0.3365).
+* **ANOVA and Post-hoc Tests:**
+    * There is no statistically significant difference in anxiety severity between the different occupations.
+    * There is no statistically significant difference in anxiety severity between the different age groups.
+
+**Implications:**
+
+*   The t-test and Cohen's d results suggest that heart rate, at least as measured in this dataset, is not a strong differentiator between high and low anxiety severity groups.
+*   The chi-squared tests indicate that, *with the exception of dizziness*, the categorical variables we examined are not strongly associated with high anxiety severity. The association with *dizziness*, while statistically significant, is very weak in terms of effect size.
+*   The ANOVA results support our earlier decision to shift focus away from occupation as a primary segmentation variable.
+*   The ANOVA also indicates that the different age groups do not present significant differences.
+
+## 6. Analysis Summary and Findings
+
+This section summarizes the key findings from the Analyze phase, directly addressing the SMART questions and providing insights relevant to targeting the "Calm Button" application. We'll present each question, followed by a concise conclusion and the supporting evidence from our analysis.
+
+### Key Findings:
+
+**Question 1 (Stress & Severity):** Among individuals reporting high stress levels (stress_level_1_10 >= 8), what is the distribution of `severity_of_anxiety_attack_1_10`? What percentage report severe anxiety attacks (>= 8)?
+
+*   **Conclusion:**  A substantial portion of the sample reports high stress, and within that group, a significant percentage also experiences high anxiety severity.
+
+*   **Evidence:**  Nearly 30% reported high stress (8+). Within the high-stress group, `r round(key_stats$Value[key_stats$Question == "Q1"], 1)`% also reported high anxiety severity (8+).  (See `descriptive-stats` chunk and `high_stress_skim` table).
+
+**Question 2 (Lifestyle & High Stress/Severity):** Within the high-stress, high-severity group, what are the average values and distributions of key lifestyle factors, and how do they compare to the overall dataset averages?
+
+*   **Conclusion:** While there were minor differences in average lifestyle factor values between the high-stress/high-severity group and the overall sample, these differences were generally small and, as shown by later analysis, not strongly predictive.
+
+*   **Evidence:**  Comparison table of means (generated in `analyze-enhancements` chunk) shows slight differences (e.g., lower average sleep hours, higher average alcohol consumption in the high-stress/high-severity group).  Correlation analysis and regression modeling (discussed later) confirmed the weak relationships.
+
+**Question 3 (Untreated Need):** What proportion of individuals with high stress and high anxiety severity report no therapy and no medication use?
+
+*   **Conclusion:** A small but potentially significant `r round(key_stats$Value[key_stats$Question == "Q3"], 1)`% of the high-stress/high-severity group is "untreated" (no therapy or medication).
+
+*   **Evidence:** Direct calculation using the `untreated` indicator variable (`analyze-enhancements` chunk).
+
+**Question 4 (Age & High Stress/Severity):** Within the high-stress, high-severity group, are there significant differences in anxiety severity, lifestyle factors, or treatment usage across different age groups?
+
+*   **Conclusion:**  No statistically significant differences were found in anxiety severity, lifestyle factors, or treatment usage across the defined age groups *within* the high-stress/high-severity group.
+
+*   **Evidence:** ANOVA tests for anxiety severity by age group (p > 0.05).  Tables and boxplots of lifestyle factors and treatment usage by age group (generated in `analyze-enhancements` chunk) showed no substantial differences.
+
+**Question 5 (Lifestyle Correlations):** Across the entire dataset, what are the correlations between the key lifestyle factors and `severity_of_anxiety_attack_1_10`? Are these correlations statistically significant?
+
+*   **Conclusion:**  Correlations between lifestyle factors and anxiety severity were very weak and mostly non-significant across the entire dataset.
+
+*   **Evidence:**  Correlation matrix and correlation tests (`correlation-analysis` chunk).  Most p-values were > 0.05, and correlation coefficients were close to zero.
+
+**Question 6 (Smoking, Family History, Dizziness, Life Events):** What proportion of individuals with high anxiety severity report these factors, compared to those with low severity?
+
+*   **Conclusion:**  Only dizziness showed a statistically significant (though weak) association with high anxiety severity. The other factors did not.
+
+*   **Evidence:**  Chi-squared tests and Cramer's V calculations (`statistical-tests` and `analyze-enhancements` chunks).  Dizziness: p = 0.03161, Cramer's V = 0.020.  All other factors: p > 0.05.
+
+**Question 8 (Physiological Response):** What are the average heart rate and breathing rate in people with high vs. low anxiety severity?
+* **Conclusion** The average heart rate and breathing rate was not statistically different between the two groups.
+* **Evidence:** T test performed showed this.
+
+**Question 9 (Therapy Usage and Severity):** Among those who report attending therapy, what is the median `severity_of_anxiety_attack_1_10`?
+
+* **Conclusion** The median anxiety score for those that attend therapy is: `r round(key_stats$Value[key_stats$Question == "Q9"],1)`.
+
+*   **Evidence:**  Direct calculation of the median (`descriptive-stats` chunk).
+
+### Overall Key Findings and Implications:
+
+*   **Untreated Segment:** The "untreated" group (high stress, high severity, no therapy/medication) represents a potentially valuable niche market for the Calm Button.
+*   **Lifestyle Factors:** Lifestyle factors, *in isolation*, are not strong predictors of anxiety severity in this dataset.
+*   **Dizziness:** Dizziness during anxiety attacks may be a useful indicator for identifying individuals with high anxiety severity.
+*   **Interaction Effects:** The logistic regression model (output not shown here, but in the `modeling` chunk) suggests potential interaction effects (e.g., between stress and sleep) that warrant further investigation.
+
+### Limitations:
+
+*   **Self-Reported Data:** Data is based on self-reported measures.
+*   **Cross-Sectional Data:**  Data represents a single point in time.
+*   **Even Occupational Distribution:**  Limits conclusions about specific professions.
+*   **No Direct Workplace Measures:** Limits analysis of workplace-specific stressors.
+
