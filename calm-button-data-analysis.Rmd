@@ -8,7 +8,7 @@ output:
     toc_float: true
 ---
 
-```{r setup, include=FALSE}
+```{r setup}
 knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
@@ -83,12 +83,11 @@ The necessary R packages (`tidyverse`, `skimr`, `here`, `janitor`, `patchwork`, 
 
 ## 3. Data Preparation (Prepare Phase) - Summary
 
-```{r prepare-code, include=FALSE}
+```{r prepare-code}
 # --- Data Import and Initial Cleaning (from Prepare phase) ---
 anxiety_data_raw <- read_csv(data_file_path)
 anxiety_data_clean_names <- janitor::clean_names(anxiety_data_raw)
 
-# --- Prepare Phase Plots (for reference, not displayed) ---
 # --- Function for Categorical Variable Visualization ---
 plot_categorical <- function(data, var_name) {
   # Create bar plot
@@ -134,7 +133,7 @@ numeric_vars <- c("age", "sleep_hours", "physical_activity_hrs_week",
 
 ## 4. Data Processing
 
-```{r process-code, include=FALSE}
+```{r process-code}
 # --- Data Processing ---
 
 # Data Type Conversion
@@ -566,4 +565,3 @@ This section summarizes the key findings from the Analyze phase, directly addres
 *   **Cross-Sectional Data:**  Data represents a single point in time.
 *   **Even Occupational Distribution:**  Limits conclusions about specific professions.
 *   **No Direct Workplace Measures:** Limits analysis of workplace-specific stressors.
-
